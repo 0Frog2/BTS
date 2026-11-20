@@ -107,8 +107,39 @@ function calendarId_() {
 function syncNow() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(25000)) return;
-  try { pushChanges_(); pullChanges_(); }
+  try { pushChanges_(); adoptFromPrimary_(); pullChanges_(); }
   finally { lock.releaseLock(); }
+}
+
+/**
+ * Events added to the account's own (primary) calendar with a BTS tag in the title
+ * ("Shoot:", "Rec:", "Mgmt:") are moved into the BTS calendar, so they show up in the tool.
+ * Untagged personal events are never touched.
+ */
+function adoptFromPrimary_() {
+  var bts = calendarId_();
+  var token = PROPS.getProperty('PRIMARY_SYNC_TOKEN'), pageToken = null, items = [], nextSync = null;
+  while (true) {
+    var opt = { maxResults: 250, showDeleted: false, singleEvents: false };
+    if (pageToken) opt.pageToken = pageToken;
+    if (token) opt.syncToken = token; else opt.timeMin = new Date(Date.now() - 30 * 864e5).toISOString();
+    var r;
+    try { r = Calendar.Events.list('primary', opt); }
+    catch (err) {
+      if (token && /410|sync token|fullSyncRequired/i.test(String(err))) { PROPS.deleteProperty('PRIMARY_SYNC_TOKEN'); token = null; pageToken = null; items = []; continue; }
+      throw err;
+    }
+    items = items.concat(r.items || []);
+    pageToken = r.nextPageToken;
+    if (!pageToken) { nextSync = r.nextSyncToken; break; }
+  }
+  items.forEach(function (g) {
+    if (g.status === 'cancelled' || !parseTitle_(g.summary).type) return;
+    if (g.organizer && g.organizer.self === false) return; // invitations from others stay put
+    try { Calendar.Events.move('primary', g.id, bts); console.log('Moved into BTS: ' + g.summary); }
+    catch (err) { console.error('move ' + g.id + ': ' + err); }
+  });
+  if (nextSync) PROPS.setProperty('PRIMARY_SYNC_TOKEN', nextSync);
 }
 
 /** Firestore → Google */
