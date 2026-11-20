@@ -10,8 +10,8 @@
  * new Firebase project's id/key. See README.md.
  */
 const CFG = {
-  PROJECT_ID: '__PROJECT_ID__',
-  API_KEY: '__API_KEY__',
+  PROJECT_ID: 'bts-team-tool',
+  API_KEY: 'AIzaSyDxEKP6HRvLQVHMiuLLbTHW8lSRdIPS7Oc',
   ADMIN_EMAIL: 'viktor4o123@gmail.com',
   ADMIN_NAME: 'Viktor',
   APP_URL: 'https://0frog2.github.io/BTS/',

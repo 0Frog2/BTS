@@ -8,12 +8,12 @@
 // ─────────────────────────────────────────────────────────────
 export const CONFIG = {
   firebase: {
-    apiKey: "__API_KEY__",
-    authDomain: "__PROJECT_ID__.firebaseapp.com",
-    projectId: "__PROJECT_ID__",
-    storageBucket: "__PROJECT_ID__.appspot.com",
-    messagingSenderId: "__SENDER_ID__",
-    appId: "__APP_ID__",
+    apiKey: "AIzaSyDxEKP6HRvLQVHMiuLLbTHW8lSRdIPS7Oc",
+    authDomain: "bts-team-tool.firebaseapp.com",
+    projectId: "bts-team-tool",
+    storageBucket: "bts-team-tool.firebasestorage.app",
+    messagingSenderId: "906797804620",
+    appId: "1:906797804620:web:c93e1c3fb9318af35858e9",
   },
   // Google Apps Script web app (calendar sync, Sunday email, document storage)
   appsScriptUrl: "__APPS_SCRIPT_URL__",
