@@ -16,7 +16,7 @@ export const CONFIG = {
     appId: "1:906797804620:web:c93e1c3fb9318af35858e9",
   },
   // Google Apps Script web app (calendar sync, Sunday email, document storage)
-  appsScriptUrl: "__APPS_SCRIPT_URL__",
+  appsScriptUrl: "https://script.google.com/macros/s/AKfycby0ZfyqNLwMOtX3RLgxrSFcLNvJ4RVNTNXXqHtGXVCm4NoeIurwQJNDZkqYFhWb77_4kw/exec",
   currency: "EUR",
   locale: "en-GB",
 };
