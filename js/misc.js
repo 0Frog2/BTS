@@ -29,6 +29,7 @@ export function summaryHTML([from, to]) {
       <div class="stat"><div class="v">${by("shoot").length}</div><div class="k">Shoots · ${hrs(by("shoot"))} h</div></div>
       <div class="stat"><div class="v">${by("recording").length}</div><div class="k">Sessions · ${hrs(by("recording"))} h</div></div>
       <div class="stat"><div class="v">${by("management").length}</div><div class="k">Management</div></div>
+      <div class="stat"><div class="v">${by("meeting").length}</div><div class="k">Team meetings</div></div>
       <div class="stat"><div class="v">${allConflicts().filter((c) => c.event.start < to).length}</div><div class="k">Clashes</div></div></div>
     ${expiring.length ? `<div class="alert warn">Contracts expiring within 60 days: ${expiring.map((c) => `<b>${esc(artistName(c.artistId))}</b> (${esc(c.endDate)})`).join(", ")}</div>` : ""}
     ${days}`;
@@ -55,11 +56,11 @@ export function renderHome(root) {
   const r = weekRange();
   const h = new Date().getHours();
   root.innerHTML = `<div class="topbar"><h1>Good ${h < 12 ? "morning" : h < 18 ? "afternoon" : "evening"}, ${esc(S.me.name.split(" ")[0])}</h1>
-      <div class="btns"><button class="btn" data-q="shoot">🎬 + Shoot</button><button class="btn" data-q="recording">🎙️ + Recording</button><button class="btn" data-q="management">📋 + Mgmt</button></div></div>
+      <div class="btns"><button class="btn" data-q="shoot">🎬 + Shoot</button><button class="btn" data-q="recording">🎙️ + Recording</button><button class="btn" data-q="management">📋 + Mgmt</button><button class="btn" data-q="meeting">🤝 + Meeting</button></div></div>
     ${!scriptReady() ? `<div class="alert warn">Google Calendar sync is not connected yet (admin: see README).</div>` : ""}
     ${conflicts.length ? `<div class="card"><h2>⚠️ Double bookings (${conflicts.length})</h2>${conflicts.map((c) => `<div class="alert bad">${esc(c.event.title)} · ${esc(fmtDT(c.event.start))}: ${esc(c.msg)}<div class="btns"><button class="btn sm" data-open="${esc(c.event.id)}">Resolve</button></div></div>`).join("")}</div>` : ""}
-    ${unsorted.length ? `<div class="card"><h2>❔ From Google Calendar – sort these (${unsorted.length})</h2><p class="muted" style="font-size:.88rem">These were added in Google without a tag. Pick where they belong (or add “Shoot:”, “Rec:” or “Mgmt:” to the title in Google).</p>
-      ${unsorted.map((e) => `<div class="alert info"><b>${esc(e.title)}</b> · ${esc(fmtDT(e.start))}<div class="btns">${["shoot", "recording", "management"].map((t) => `<button class="btn sm" data-sort="${esc(e.id)}" data-t="${t}">${TYPES[t].icon} ${TYPES[t].label}</button>`).join("")}<button class="btn sm" data-open="${esc(e.id)}">Open</button></div></div>`).join("")}</div>` : ""}
+    ${unsorted.length ? `<div class="card"><h2>❔ From Google Calendar – sort these (${unsorted.length})</h2><p class="muted" style="font-size:.88rem">These were added in Google without a tag. Pick where they belong (or add “Shoot:”, “Rec:”, “Mgmt:” or “Meet:” to the title in Google).</p>
+      ${unsorted.map((e) => `<div class="alert info"><b>${esc(e.title)}</b> · ${esc(fmtDT(e.start))}<div class="btns">${["shoot", "recording", "management", "meeting"].map((t) => `<button class="btn sm" data-sort="${esc(e.id)}" data-t="${t}">${TYPES[t].icon} ${TYPES[t].label}</button>`).join("")}<button class="btn sm" data-open="${esc(e.id)}">Open</button></div></div>`).join("")}</div>` : ""}
     ${expiring.length ? `<div class="card flat"><div style="padding:12px 14px;border-bottom:1px solid var(--line)"><h2 style="margin:0">📄 Contracts expiring soon</h2></div><div class="list">${expiring.map(contractRow).join("")}</div></div>` : ""}
     <div class="grid2">
       <div class="card flat"><div style="padding:12px 14px;border-bottom:1px solid var(--line)"><h2 style="margin:0">Coming up</h2></div><div class="list">${upcoming.map((e) => eventRow(e)).join("") || '<div class="empty">Nothing planned yet.</div>'}</div></div>
@@ -98,6 +99,7 @@ export function renderDocs(root) {
   bindDocRows(root);
 }
 export function openDocUpload(preset = {}) {
+  const onDone = preset.onDone;
   const arts = [...S.artists].sort((a, b) => a.name.localeCompare(b.name));
   const evs = events().sort((a, b) => b.start - a.start).slice(0, 80);
   const m = modal(`<div class="mh"><h2>Upload document</h2><button class="x" data-close>×</button></div>
@@ -117,12 +119,12 @@ export function openDocUpload(preset = {}) {
       const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); });
       const name = val(m.el, "name") || f.name;
       const up = await callScript("upload", { name: f.name, mime: f.type || "application/octet-stream", data: b64 });
-      await save("docs", null, { name, fileName: f.name, mime: f.type, size: f.size, driveId: up.id, category: val(m.el, "category"), artistId: val(m.el, "artistId"), eventId: val(m.el, "eventId"), notes: val(m.el, "notes"), uploadedByName: S.me.name }, name);
-      toast("Uploaded"); m.close();
+      const newDocId = await save("docs", null, { name, fileName: f.name, mime: f.type, size: f.size, driveId: up.id, category: val(m.el, "category"), artistId: val(m.el, "artistId"), eventId: val(m.el, "eventId"), notes: val(m.el, "notes"), uploadedByName: S.me.name }, name);
+      toast("Uploaded"); m.close(); onDone && onDone(newDocId);
     } catch (e) { toast("Upload failed: " + e.message, true); ev.target.disabled = false; ev.target.textContent = "Upload"; }
   };
 }
-function openDoc(id) {
+export function openDoc(id) {
   const d = byId("docs", id);
   const ev = d.eventId ? byId("events", d.eventId) : null;
   const m = modal(`<div class="mh"><h2>${fileIcon(d.mime)} ${esc(d.name)}</h2><button class="x" data-close>×</button></div>

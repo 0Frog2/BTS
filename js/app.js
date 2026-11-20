@@ -8,7 +8,7 @@ import { esc, $, $$, modal, toast } from "./util.js";
 
 const app = document.getElementById("app");
 const NAV = [
-  ["home", "🏠", "Home"], ["calendar", "📅", "Calendar"], ["production", "🎬", "Production"], ["audio", "🎙️", "Audio"], ["management", "📋", "Management"],
+  ["home", "🏠", "Home"], ["calendar", "📅", "Calendar"], ["production", "🎬", "Production"], ["audio", "🎙️", "Audio"], ["management", "📋", "Management"], ["meetings", "🤝", "Team meetings"],
   ["artists", "🎤", "Artists"], ["docs", "📄", "Documents"], ["equipment", "🎥", "Equipment"], ["locations", "📍", "Locations"], "-",
   ["activity", "🕘", "Activity"], ["team", "👥", "Team"], ["help", "❓", "Help"], ["account", "⚙️", "My account"],
 ];
@@ -54,7 +54,7 @@ function shell() {
 }
 function plusMenu() {
   const opts = [["🎬", "Shoot", () => openEventEditor(null, { type: "shoot" })], ["🎙️", "Recording session", () => openEventEditor(null, { type: "recording" })],
-    ["📋", "Meeting / drop / gig", () => openEventEditor(null, { type: "management" })], ["🎤", "Artist", () => openArtistEditor()], ["📝", "Contract", () => openContractEditor()],
+    ["📋", "Drop / gig / artist meeting", () => openEventEditor(null, { type: "management" })], ["🤝", "Team meeting", () => openEventEditor(null, { type: "meeting" })], ["🎤", "Artist", () => openArtistEditor()], ["📝", "Contract", () => openContractEditor()],
     ["🎥", "Equipment item", () => openEquipEditor()], ["📄", "Upload document", () => openDocUpload()]];
   const m = modal(`<div class="mh"><h2>Add new</h2><button class="x" data-close>×</button></div><div class="drawer">${opts.map((o, i) => `<a href="#" data-i="${i}">${o[0]} ${o[1]}</a>`).join("")}</div>`);
   $$("[data-i]", m.el).forEach((a) => a.onclick = (e) => { e.preventDefault(); m.close(); opts[a.dataset.i][2](); });
@@ -75,6 +75,7 @@ function render() {
       case "production": renderTypeList(view, "shoot", "Production · Shoots"); break;
       case "audio": renderTypeList(view, "recording", "Audio · Recording sessions"); break;
       case "management": renderManagement(view); break;
+      case "meetings": renderTypeList(view, "meeting", "Team meetings"); break;
       case "artists": renderArtists(view); break;
       case "artist": renderArtist(view, arg); break;
       case "docs": renderDocs(view); break;

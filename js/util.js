@@ -37,12 +37,14 @@ export const TYPES = {
   shoot: { label: "Shoot", tag: "Shoot", plural: "Shoots", icon: "🎬" },
   recording: { label: "Recording", tag: "Rec", plural: "Recording sessions", icon: "🎙️" },
   management: { label: "Management", tag: "Mgmt", plural: "Management items", icon: "📋" },
+  meeting: { label: "Team meeting", tag: "Meet", plural: "Team meetings", icon: "🤝" },
   unsorted: { label: "Unsorted", tag: "", plural: "Unsorted", icon: "❔" },
 };
 export const SUBTYPES = {
   shoot: ["Music video", "Visualizer", "Social content", "Photo shoot", "Behind the scenes", "Other"],
   recording: ["Recording", "Writing session", "Mixing", "Mastering", "Rehearsal", "Other"],
-  management: ["Meeting", "Release / drop", "Concert / gig", "Deadline", "Promo / interview", "Other"],
+  management: ["Artist meeting", "Release / drop", "Concert / gig", "Deadline", "Promo / interview", "Other"],
+  meeting: ["Weekly sync", "Planning", "Creative / brainstorm", "Money / finance", "Review / feedback", "Other"],
   unsorted: ["Other"],
 };
 export const EQUIP_CATS = ["Camera", "Lens", "Lighting", "Light modifier", "Stand / grip", "Audio", "Power / batteries", "Storage / media", "Computer", "Other"];
@@ -90,3 +92,6 @@ export function confirmBox(text, okLabel = "Confirm", danger = true) {
 export const opt = (v, label, sel) => `<option value="${esc(v)}" ${String(v) === String(sel ?? "") ? "selected" : ""}>${esc(label ?? v)}</option>`;
 export const val = (root, name) => { const el = root.querySelector(`[name="${name}"]`); if (!el) return undefined; return el.type === "checkbox" ? el.checked : el.value.trim(); };
 export const linkify = (s) => esc(s).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener">$1</a>');
+
+export const TYPE_ORDER = ["shoot", "recording", "management", "meeting", "unsorted"];
+export const NO_GEAR = new Set(["management", "meeting"]);

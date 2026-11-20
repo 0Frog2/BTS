@@ -5,7 +5,7 @@ export function renderHelp(root) {
   <ul class="toc">
     <li><a href="#h-start">1. Getting started</a></li><li><a href="#h-home">2. Home</a></li><li><a href="#h-cal">3. Calendar</a></li>
     <li><a href="#h-shoot">4. Logging a shoot</a></li><li><a href="#h-rec">5. Logging a recording session</a></li><li><a href="#h-clash">6. Double bookings</a></li>
-    <li><a href="#h-mgmt">7. Management</a></li><li><a href="#h-art">8. Artists</a></li><li><a href="#h-contract">9. Contracts</a></li>
+    <li><a href="#h-mgmt">7. Management</a></li><li><a href="#h-meet">7b. Team meetings</a></li><li><a href="#h-art">8. Artists</a></li><li><a href="#h-contract">9. Contracts</a></li>
     <li><a href="#h-docs">10. Documents</a></li><li><a href="#h-eq">11. Equipment</a></li><li><a href="#h-loc">12. Locations</a></li>
     <li><a href="#h-google">13. Google Calendar sync & tags</a></li><li><a href="#h-sum">14. Sunday summary</a></li><li><a href="#h-call">15. Call sheet links</a></li>
     <li><a href="#h-money">16. Money</a></li><li><a href="#h-hist">17. History & activity log</a></li><li><a href="#h-acc">18. Accounts & passwords</a></li><li><a href="#h-tips">19. Tips & FAQ</a></li>
@@ -25,7 +25,7 @@ export function renderHelp(root) {
 
   <h2 id="h-cal">3. Calendar</h2>
   <ul>
-    <li>Colours: <span class="t-shoot"><span class="tdot"></span></span> shoots, <span class="t-recording"><span class="tdot"></span></span> recordings, <span class="t-management"><span class="tdot"></span></span> management, <span class="t-unsorted"><span class="tdot"></span></span> unsorted (from Google with no tag).</li>
+    <li>Colours: <span class="t-shoot"><span class="tdot"></span></span> shoots, <span class="t-recording"><span class="tdot"></span></span> recordings, <span class="t-management"><span class="tdot"></span></span> management, <span class="t-meeting"><span class="tdot"></span></span> team meetings, <span class="t-unsorted"><span class="tdot"></span></span> unsorted (from Google with no tag).</li>
     <li>Tap a day to see its list and add something on that day. On a computer, click an item in the grid to open it.</li>
     <li>Use the coloured filter chips to show only some types.</li>
   </ul>
@@ -60,6 +60,18 @@ export function renderHelp(root) {
     <li><b>All contracts</b> – sorted by expiry date, with whether we want to renew.</li>
   </ul>
 
+  <h2 id="h-meet">7b. Team meetings</h2>
+  <p>For internal meetings of the team (not with artists – those go under Management).</p>
+  <ol>
+    <li>Press <b>+ Meeting</b> (Home, Calendar, Team meetings tab, or ＋ on mobile).</li>
+    <li>Choose the kind (weekly sync, planning, brainstorm, money…), date, start time and length. Everyone on the team is pre-selected under <b>Who attends</b> – tap to remove people.</li>
+    <li>Pick a location, or paste an <b>online meeting link</b> (Google Meet, Zoom…).</li>
+    <li>Write the <b>Agenda – one point per line</b>. The tool shows the number of agenda points in the list, and the full agenda is in the Google Calendar event and the Sunday email.</li>
+    <li><b>Documents to discuss</b>: attach any uploaded document with one tap, or <b>Upload a document</b> straight from the meeting. Everyone can open them from the meeting.</li>
+    <li>During or after the meeting, write <b>Minutes & decisions</b> in the notes field so there's a record.</li>
+  </ol>
+  <p>In Google the title starts with <code>Meet:</code> – you can also create one in Google with that tag. Meetings use the same clash check, so nobody can be booked on a shoot during a team meeting.</p>
+
   <h2 id="h-art">8. Artists</h2>
   <p>One shared profile per artist, used in every tab. That covers artists we manage (★) and artists we've just worked with, so their details can be reused next time.</p>
   <ul>
@@ -89,7 +101,7 @@ export function renderHelp(root) {
   <h2 id="h-google">13. Google Calendar sync & tags</h2>
   <ul>
     <li>Everything lives in one Google calendar called <b>BTS</b>. The tag at the start of the title says what it is:<br>
-      <code>Shoot: Valentino – Music video</code> → Production · <code>Rec: Valentino</code> → Audio · <code>Mgmt: Label meeting</code> → Management.</li>
+      <code>Shoot: Valentino – Music video</code> → Production · <code>Rec: Valentino</code> → Audio · <code>Mgmt: Label meeting</code> → Management · <code>Meet: Weekly sync</code> → Team meetings.</li>
     <li><b>From the tool → Google:</b> within a few seconds of saving. The Google event has the location, team, equipment and notes in its description.</li>
     <li><b>From Google → the tool:</b> within about 1 minute. Two ways:
       <ul><li>Add the event to the <b>BTS</b> calendar (choose “BTS” in the calendar dropdown when creating it). Tagged events go to the right tab; untagged ones land in <b>Unsorted</b> on Home, where you choose the type with one tap.</li>

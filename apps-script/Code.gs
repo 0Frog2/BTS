@@ -20,8 +20,8 @@ const CFG = {
   TZ: 'Europe/Sofia',
 };
 const PROPS = PropertiesService.getScriptProperties();
-const TAGS = { shoot: 'Shoot', recording: 'Rec', management: 'Mgmt' };
-const COLORS = { shoot: '6', recording: '7', management: '3' };
+const TAGS = { shoot: 'Shoot', recording: 'Rec', management: 'Mgmt', meeting: 'Meet' };
+const COLORS = { shoot: '6', recording: '7', management: '3', meeting: '2' };
 
 // ───────────────────────── Setup ─────────────────────────
 function setup() {
@@ -173,15 +173,18 @@ function pushOne_(e, L) {
 function resource_(e, L) {
   var tag = TAGS[e.type];
   var loc = e.locationId && L.locations[e.locationId];
-  var location = loc ? [loc.name, loc.address].filter(String).join(', ') : (e.locationText || '');
+  var location = loc ? [loc.name, loc.address].filter(String).join(', ') : (e.locationText || e.link || '');
   var lines = [];
   if (e.subtype) lines.push('Kind: ' + e.subtype);
   if (e.artistId && L.artists[e.artistId]) lines.push('Artist: ' + L.artists[e.artistId].name);
   if (e.travelMin) lines.push('Travel: ' + e.travelMin + ' min each way');
   if ((e.memberIds || []).length) lines.push('Team: ' + e.memberIds.map(function (m) { return L.members[m] ? L.members[m].name : m; }).join(', '));
   if ((e.equipmentIds || []).length) lines.push('Equipment: ' + e.equipmentIds.map(function (q) { var i = L.equipment[q]; return i ? (i.number ? i.number + ' ' : '') + i.name : '?'; }).join(', '));
-  if (e.brief) lines.push('', (e.type === 'recording' ? 'Songs / plan:\n' : 'Brief:\n') + e.brief);
-  if (e.notes) lines.push('', 'Notes:\n' + e.notes);
+  if (e.link) lines.push('Online: ' + e.link);
+  if (e.type === 'meeting' && e.brief) lines.push('', 'Agenda:\n' + String(e.brief).split('\n').filter(String).map(function (x) { return '• ' + x.replace(/^\s*[-*•\d.)]+\s*/, ''); }).join('\n'));
+  else if (e.brief) lines.push('', (e.type === 'recording' ? 'Songs / plan:\n' : 'Brief:\n') + e.brief);
+  if ((e.docIds || []).length) lines.push('', 'Documents to discuss: ' + e.docIds.map(function (d) { return L.docs[d] ? L.docs[d].name : '?'; }).join(', '));
+  if (e.notes) lines.push('', (e.type === 'meeting' ? 'Minutes:\n' : 'Notes:\n') + e.notes);
   lines.push('', 'Open in BTS: ' + CFG.APP_URL);
   var r = {
     summary: (tag ? tag + ': ' : '') + (e.title || 'Untitled') + (e.status === 'cancelled' ? ' (CANCELLED)' : ''),
@@ -228,12 +231,12 @@ function parseTitle_(s) {
   s = String(s || '');
   var cancelled = /\s*\(CANCELLED\)\s*$/i.test(s);
   s = s.replace(/\s*\(CANCELLED\)\s*$/i, '');
-  var m = s.match(/^\s*[\[#]?\s*(shoot|shooting|video|prod|production|rec|recording|audio|session|mgmt|management|manage)\s*\]?\s*[:\-–—]\s*(.*)$/i) ||
-          s.match(/^\s*\[(shoot|shooting|video|prod|production|rec|recording|audio|session|mgmt|management|manage)\]\s*(.*)$/i);
+  var m = s.match(/^\s*[\[#]?\s*(shoot|shooting|video|prod|production|rec|recording|audio|session|mgmt|management|manage|meet|meeting|team)\s*\]?\s*[:\-–—]\s*(.*)$/i) ||
+          s.match(/^\s*\[(shoot|shooting|video|prod|production|rec|recording|audio|session|mgmt|management|manage|meet|meeting|team)\]\s*(.*)$/i);
   var type = null, title = s.trim();
   if (m) {
     var k = m[1].toLowerCase();
-    type = /^(shoot|shooting|video|prod|production)$/.test(k) ? 'shoot' : /^(rec|recording|audio|session)$/.test(k) ? 'recording' : 'management';
+    type = /^(shoot|shooting|video|prod|production)$/.test(k) ? 'shoot' : /^(rec|recording|audio|session)$/.test(k) ? 'recording' : /^(meet|meeting|team)$/.test(k) ? 'meeting' : 'management';
     title = m[2].trim();
   }
   return { type: type, title: title || 'Untitled', cancelled: cancelled };
@@ -280,7 +283,7 @@ function log_(action, docId, label, changes) {
   addDoc_('activity', { ts: Date.now(), by: 'google-calendar', byName: 'Google Calendar', action: action, col: 'events', docId: docId, label: label || '', changes: changes || [] });
 }
 function lookups_() {
-  var L = { members: {}, artists: {}, equipment: {}, locations: {} };
+  var L = { members: {}, artists: {}, equipment: {}, locations: {}, docs: {} };
   Object.keys(L).forEach(function (c) { listDocs_(c).forEach(function (d) { L[c][d.id] = d; }); });
   return L;
 }
@@ -301,12 +304,12 @@ function sendSummary_(to) {
   var evs = listDocs_('events').filter(function (e) { return !e.deleted && e.status !== 'cancelled' && Number(e.start) < to7 && Number(e.end) > from; })
     .sort(function (a, b) { return a.start - b.start; });
   var fmt = function (ms, p) { return Utilities.formatDate(new Date(Number(ms)), CFG.TZ, p); };
-  var C = { shoot: '#f59e0b', recording: '#22d3ee', management: '#a78bfa', unsorted: '#94a3b8' };
-  var N = { shoot: 'Shoot', recording: 'Recording', management: 'Management', unsorted: 'Unsorted' };
+  var C = { shoot: '#f59e0b', recording: '#22d3ee', management: '#a78bfa', meeting: '#34d399', unsorted: '#94a3b8' };
+  var N = { shoot: 'Shoot', recording: 'Recording', management: 'Management', meeting: 'Team meeting', unsorted: 'Unsorted' };
   var esc = function (s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); };
   var html = '<div style="font-family:Arial,Helvetica,sans-serif;max-width:640px;color:#111">' +
     '<h2 style="margin:0 0 4px">BTS · Week of ' + fmt(from, 'd MMM') + ' – ' + fmt(to7 - 1, 'd MMM yyyy') + '</h2>' +
-    '<p style="color:#555;margin:0 0 16px">' + evs.filter(function (e) { return e.type === 'shoot'; }).length + ' shoots · ' + evs.filter(function (e) { return e.type === 'recording'; }).length + ' recording sessions · ' + evs.filter(function (e) { return e.type === 'management'; }).length + ' management items</p>';
+    '<p style="color:#555;margin:0 0 16px">' + evs.filter(function (e) { return e.type === 'shoot'; }).length + ' shoots · ' + evs.filter(function (e) { return e.type === 'recording'; }).length + ' recording sessions · ' + evs.filter(function (e) { return e.type === 'management'; }).length + ' management items · ' + evs.filter(function (e) { return e.type === 'meeting'; }).length + ' team meetings</p>';
   var clashes = clashes_(evs);
   if (clashes.length) html += '<div style="background:#fde8e8;border:1px solid #f5b5b5;padding:10px;border-radius:6px;margin-bottom:14px"><b>⚠️ Double bookings to fix:</b><br>' + clashes.map(esc).join('<br>') + '</div>';
   for (var d = from; d < to7; d = dayStart_(d + 864e5 + 3600e3)) {
@@ -321,7 +324,9 @@ function sendSummary_(to) {
         '<b>' + (e.allDay ? 'All day' : fmt(e.start, 'HH:mm') + '–' + fmt(e.end, 'HH:mm')) + ' · ' + esc(e.title) + '</b> <span style="color:#777">(' + N[e.type || 'unsorted'] + (e.subtype ? ' · ' + esc(e.subtype) : '') + ')</span>' +
         (e.artistId && L.artists[e.artistId] ? '<br>🎤 ' + esc(L.artists[e.artistId].name) : '') +
         (loc ? '<br>📍 ' + esc(loc) + (e.travelMin ? ' (' + e.travelMin + ' min travel)' : '') : '') +
-        (team ? '<br>👥 ' + esc(team) : '') + (gear ? '<br>🎥 ' + esc(gear) : '') + '</div>';
+        (team ? '<br>👥 ' + esc(team) : '') + (gear ? '<br>🎥 ' + esc(gear) : '') +
+        (e.type === 'meeting' && e.brief ? '<br>📝 Agenda: ' + esc(String(e.brief).split('\n').filter(String).join(' · ')) : '') +
+        ((e.docIds || []).length ? '<br>📄 ' + esc(e.docIds.map(function (d) { return L.docs[d] ? L.docs[d].name : '?'; }).join(', ')) : '') + '</div>';
     });
   }
   var exp = listDocs_('contracts').filter(function (c) { if (!c.endDate) return false; var n = (Utilities.parseDate(c.endDate, CFG.TZ, 'yyyy-MM-dd').getTime() - today) / 864e5; return n >= 0 && n <= 60; });

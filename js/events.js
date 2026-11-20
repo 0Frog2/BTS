@@ -1,12 +1,15 @@
+import { openDocUpload, openDoc } from "./misc.js";
 import { S, byId, events, live, save, memberName, artistName, equipLabel, locName, setRaw, delRaw, uid, onChange } from "./store.js";
 import { findConflicts, freeMembers, freeEquipment, nextFreeSlot, equipmentBusy, memberBusy } from "./conflicts.js";
 import {
   esc, $, $$, modal, toast, confirmBox, opt, fmtDT, fmtDate, fmtDateShort, fmtTime, money, hoursOf, toDateInput, toTimeInput,
-  fromInputs, TYPES, SUBTYPES, EQUIP_CATS, startOfDay, addDays,
+  fromInputs, TYPES, SUBTYPES, EQUIP_CATS, startOfDay, addDays, TYPE_ORDER, NO_GEAR, linkify,
 } from "./util.js";
 
 export const paidOf = (e) => (e.payments || []).reduce((s, p) => s + (Number(p.amount) || 0), 0);
 export const owedOf = (e) => e.status === "cancelled" ? 0 : Math.max(0, (Number(e.price) || 0) - paidOf(e));
+
+export const agendaItems = (e) => String(e.brief || "").split("\n").map((x) => x.replace(/^\s*[-*•\d.)]+\s*/, "").trim()).filter(Boolean);
 
 export function eventRow(e, { showDate = true } = {}) {
   const t = TYPES[e.type] || TYPES.unsorted;
@@ -23,6 +26,9 @@ export function eventRow(e, { showDate = true } = {}) {
         ${locName(e) ? `<span>📍 ${esc(locName(e))}${e.travelMin ? ` (+${esc(e.travelMin)} min travel)` : ""}</span>` : ""}
         ${crew ? `<span>👥 ${esc(crew)}</span>` : ""}
         ${(e.equipmentIds || []).length ? `<span>🎥 ${(e.equipmentIds || []).length} items</span>` : ""}
+        ${e.type === "meeting" && agendaItems(e).length ? `<span>📝 ${agendaItems(e).length} agenda points</span>` : ""}
+        ${(e.docIds || []).length ? `<span>📄 ${(e.docIds || []).length} docs</span>` : ""}
+        ${e.link ? `<span>🔗 online</span>` : ""}
       </div>
     </div>
     <div class="right">${hoursOf(e) && !e.allDay ? hoursOf(e) + " h" : ""}${owed ? `<div class="money-pos">${esc(money(owed))} due</div>` : ""}</div>
@@ -40,14 +46,15 @@ export function openEventEditor(id, preset = {}) {
     type: preset.type || "shoot", subtype: "", title: "", artistId: preset.artistId || "", status: "planned",
     start: preset.start || now.getTime(), end: (preset.start || now.getTime()) + 4 * 36e5, allDay: false,
     locationId: "", locationText: "", travelMin: 0, memberIds: S.me ? [S.me.id] : [], equipmentIds: [],
-    price: "", payments: [], notes: "", brief: "", callNotes: "",
+    price: "", payments: [], notes: "", brief: "", callNotes: "", docIds: [], link: "",
   };
-  st.memberIds = st.memberIds || []; st.equipmentIds = st.equipmentIds || []; st.payments = st.payments || [];
+  if (!ex && preset.type === "meeting") st.memberIds = S.members.filter((x) => x.active !== false).map((x) => x.id);
+  st.memberIds = st.memberIds || []; st.equipmentIds = st.equipmentIds || []; st.payments = st.payments || []; st.docIds = st.docIds || [];
   const isNew = !ex;
 
   const m = modal(`
     <div class="mh"><h2>${isNew ? "New" : "Edit"} <span data-typelabel></span></h2><button class="x" data-close>×</button></div>
-    <div class="tabs" data-typetabs>${["shoot", "recording", "management", "unsorted"].filter((t) => t !== "unsorted" || st.type === "unsorted").map((t) => `<button type="button" data-t="${t}">${TYPES[t].icon} ${TYPES[t].label}</button>`).join("")}</div>
+    <div class="tabs" data-typetabs>${TYPE_ORDER.filter((t) => t !== "unsorted" || st.type === "unsorted").map((t) => `<button type="button" data-t="${t}">${TYPES[t].icon} ${TYPES[t].label}</button>`).join("")}</div>
     <div class="row">
       <div class="field"><label>Kind</label><select name="subtype"></select></div>
       <div class="field"><label>Status</label><select name="status">${opt("planned", "Planned", st.status)}${opt("done", "Done", st.status)}${opt("cancelled", "Cancelled", st.status)}</select></div>
@@ -66,15 +73,18 @@ export function openEventEditor(id, preset = {}) {
         <div data-newloc style="display:none;margin-top:6px" class="row"><input name="newLocName" placeholder="Location name"><input name="newLocAddr" placeholder="Address (optional)"></div></div>
       <div class="field" style="flex:0 1 150px"><label>Travel time (min, each way)</label><input type="number" name="travelMin" min="0" step="5" value="${esc(st.travelMin || 0)}"></div>
     </div>
-    <div class="section"><h3>Team</h3><div class="chips" data-members></div></div>
+    <div class="field" data-linkf><label>Online meeting link <span class="dim">(Google Meet, Zoom… optional)</span></label><input name="link" value="${esc(st.link || "")}" placeholder="https://meet.google.com/…"></div>
+    <div class="section"><h3 data-teamlabel>Team</h3><div class="chips" data-members></div></div>
+    <div class="section" data-docsec><h3>Documents to discuss</h3><div data-docsel></div>
+      <div class="btns" style="margin-top:8px"><button type="button" class="btn sm" data-updoc>+ Upload a document</button></div></div>
     <div class="section" data-equipsec><h3>Equipment <span class="dim" data-eqcount></span></h3><div data-equip></div></div>
     <div class="section"><h3>Clashes</h3><div data-conflicts></div></div>
     <div class="section"><h3>Notes</h3>
       <div class="field"><label data-brieflabel>Brief / shot list</label><textarea name="brief">${esc(st.brief || "")}</textarea></div>
-      <div class="field"><label>Internal notes</label><textarea name="notes">${esc(st.notes || "")}</textarea></div>
+      <div class="field"><label data-noteslabel>Internal notes</label><textarea name="notes">${esc(st.notes || "")}</textarea></div>
       <div class="field" data-callf><label>Call sheet notes <span class="dim">(visible to the artist on the shared call sheet)</span></label><textarea name="callNotes" placeholder="What to bring, outfits, parking…">${esc(st.callNotes || "")}</textarea></div>
     </div>
-    <div class="section"><h3>Money</h3>
+    <div class="section" data-moneysec><h3>Money</h3>
       <div class="row"><div class="field"><label>Price (€)</label><input type="number" name="price" min="0" step="1" value="${esc(st.price ?? "")}"></div><div class="field"><label>Balance</label><div data-bal style="padding:10px 0"></div></div></div>
       <div data-payments></div>
       <button type="button" class="btn sm" data-addpay>+ Add payment</button>
@@ -103,6 +113,7 @@ export function openEventEditor(id, preset = {}) {
     }
     st.locationId = $("[name=locationId]", el).value;
     st.travelMin = parseInt($("[name=travelMin]", el).value) || 0;
+    st.link = $("[name=link]", el).value.trim();
     st.brief = $("[name=brief]", el).value; st.notes = $("[name=notes]", el).value; st.callNotes = $("[name=callNotes]", el).value;
     st.price = $("[name=price]", el).value === "" ? "" : Number($("[name=price]", el).value);
     $$("[data-pay]", el).forEach((row, i) => {
@@ -119,9 +130,17 @@ export function openEventEditor(id, preset = {}) {
     $$("[data-typetabs] button", el).forEach((b) => b.classList.toggle("on", b.dataset.t === st.type));
     const subs = SUBTYPES[st.type];
     $("[name=subtype]", el).innerHTML = subs.map((s) => opt(s, s, st.subtype || subs[0])).join("");
-    $("[data-equipsec]", el).style.display = st.type === "management" ? "none" : "";
-    $("[data-brieflabel]", el).textContent = st.type === "recording" ? "Songs / session plan" : st.type === "management" ? "Agenda / details" : "Brief / shot list";
-    $("[data-callf]", el).style.display = st.type === "management" ? "none" : "";
+    const mt = st.type === "meeting";
+    $("[data-equipsec]", el).style.display = NO_GEAR.has(st.type) ? "none" : "";
+    $("[data-brieflabel]", el).textContent = mt ? "Agenda – one point per line" : st.type === "recording" ? "Songs / session plan" : st.type === "management" ? "Agenda / details" : "Brief / shot list";
+    $("[name=brief]", el).placeholder = mt ? "e.g.\nNext month's shoots\nValentino contract renewal\nNew lights budget" : "";
+    $("[data-noteslabel]", el).textContent = mt ? "Minutes & decisions (fill in during / after the meeting)" : "Internal notes";
+    $("[data-callf]", el).style.display = NO_GEAR.has(st.type) ? "none" : "";
+    $("[data-moneysec]", el).style.display = mt ? "none" : "";
+    $("[data-linkf]", el).style.display = mt || st.type === "management" ? "" : "none";
+    $("[data-teamlabel]", el).textContent = mt ? "Who attends" : "Team";
+    $("[data-docsec]", el).style.display = mt || st.type === "management" ? "" : "none";
+    const sh = $("[data-share]", el); if (sh) sh.style.display = NO_GEAR.has(st.type) ? "none" : "";
   }
   function renderArtists() {
     const arts = [...S.artists].sort((a, b) => a.name.localeCompare(b.name));
@@ -150,6 +169,17 @@ export function openEventEditor(id, preset = {}) {
       return `<span class="chip ${st.equipmentIds.includes(q.id) ? "on" : ""} ${busy ? "busy" : ""} ${off ? "off" : ""}" data-q="${esc(q.id)}" title="${busy ? "Booked: " + esc(busy.title) : off ? esc(q.status || q.condition) : ""}">${esc(q.number ? q.number + " · " : "")}${esc(q.name)}${busy ? " <small>booked</small>" : off ? ` <small>${esc(q.status !== "Available" ? q.status : q.condition)}</small>` : ""}</span>`;
     }).join("")}</div>`).join("");
     $$("[data-q]", el).forEach((c) => c.onclick = () => { const id = c.dataset.q; st.equipmentIds = st.equipmentIds.includes(id) ? st.equipmentIds.filter((x) => x !== id) : [...st.equipmentIds, id]; renderEquip(); renderConflicts(); });
+  }
+  function renderDocs() {
+    const box = $("[data-docsel]", el);
+    const docs = [...S.docs].sort((a, b) => (st.docIds.includes(b.id) - st.docIds.includes(a.id)) || b.createdAt - a.createdAt);
+    if (!docs.length) { box.innerHTML = '<span class="dim">No documents uploaded yet.</span>'; return; }
+    const sel = docs.filter((d) => st.docIds.includes(d.id));
+    box.innerHTML = (sel.length ? `<div class="card flat" style="margin:0 0 8px"><div class="list">${sel.map((d) => `<div class="item" style="cursor:default"><div class="body"><div class="t">📄 ${esc(d.name)}</div><div class="meta"><span>${esc(d.category || "")}</span>${d.artistId ? `<span>🎤 ${esc(artistName(d.artistId))}</span>` : ""}</div></div><div class="btns"><button type="button" class="btn sm" data-opendoc="${esc(d.id)}">Open</button><button type="button" class="btn sm ghost" data-rmdoc="${esc(d.id)}">✕</button></div></div>`).join("")}</div></div>` : "") +
+      `<div class="group-label">Attach an existing document</div><div class="chips">${docs.filter((d) => !st.docIds.includes(d.id)).slice(0, 40).map((d) => `<span class="chip" data-adddoc="${esc(d.id)}">+ ${esc(d.name)}</span>`).join("") || '<span class="dim">All documents attached.</span>'}</div>`;
+    $$("[data-adddoc]", box).forEach((c) => c.onclick = () => { st.docIds.push(c.dataset.adddoc); renderDocs(); });
+    $$("[data-rmdoc]", box).forEach((c) => c.onclick = () => { st.docIds = st.docIds.filter((x) => x !== c.dataset.rmdoc); renderDocs(); });
+    $$("[data-opendoc]", box).forEach((c) => c.onclick = () => openDoc(c.dataset.opendoc));
   }
   let conflicts = [];
   function renderConflicts() {
@@ -204,9 +234,10 @@ export function openEventEditor(id, preset = {}) {
   }
   function toggleAllDay() { $$("[data-timef]", el).forEach((f) => (f.style.display = st.allDay ? "none" : "")); }
 
-  renderType(); renderArtists(); renderLocations(); renderMembers(); renderEquip(); renderPayments(); renderBal(); toggleAllDay(); renderConflicts();
+  renderType(); renderArtists(); renderLocations(); renderMembers(); renderEquip(); renderDocs(); renderPayments(); renderBal(); toggleAllDay(); renderConflicts();
+  $("[data-updoc]", el).onclick = () => openDocUpload({ category: "Other", eventId: ex?.id || "", onDone: (id) => { st.docIds.push(id); setTimeout(renderDocs, 400); } });
 
-  $$("[data-typetabs] button", el).forEach((b) => b.onclick = () => { readForm(); st.type = b.dataset.t; st.subtype = ""; if (st.type === "management") st.equipmentIds = []; renderType(); renderEquip(); renderConflicts(); });
+  $$("[data-typetabs] button", el).forEach((b) => b.onclick = () => { readForm(); st.type = b.dataset.t; st.subtype = ""; if (NO_GEAR.has(st.type)) st.equipmentIds = []; renderType(); renderEquip(); renderConflicts(); });
   $("[name=artistId]", el).onchange = (e) => { $("[name=newArtist]", el).style.display = e.target.value === "__new" ? "" : "none"; readForm(); renderConflicts(); };
   $("[name=locationId]", el).onchange = (e) => {
     $("[data-newloc]", el).style.display = e.target.value === "__new" ? "" : "none";
@@ -234,12 +265,12 @@ export function openEventEditor(id, preset = {}) {
         st.locationId = await save("locations", null, { name: n, address: $("[name=newLocAddr]", el).value.trim(), travelMin: st.travelMin || 0 }, n);
       }
       if (findConflicts({ ...st, id: ex?.id }).length) { renderConflicts(); btn.textContent = "Save"; return toast("Resolve the clashes first", true); }
-      if (!st.title) st.title = [artistName(st.artistId), st.subtype || TYPES[st.type].label].filter(Boolean).join(" – ");
+      if (!st.title) st.title = st.type === "meeting" ? `Team meeting – ${st.subtype || "Weekly sync"}` : [artistName(st.artistId), st.subtype || TYPES[st.type].label].filter(Boolean).join(" – ");
       const data = {
         type: st.type, subtype: st.subtype, title: st.title, artistId: st.artistId || "", status: st.status,
         start: st.start, end: st.end, allDay: !!st.allDay, locationId: st.locationId || "", locationText: st.locationId ? "" : (st.locationText || ""),
-        travelMin: st.travelMin || 0, memberIds: st.memberIds, equipmentIds: st.type === "management" ? [] : st.equipmentIds,
-        price: st.price === "" ? 0 : st.price, payments: st.payments.filter((p) => p.amount), brief: st.brief, notes: st.notes, callNotes: st.callNotes, deleted: false,
+        travelMin: st.travelMin || 0, memberIds: st.memberIds, equipmentIds: NO_GEAR.has(st.type) ? [] : st.equipmentIds, docIds: st.docIds, link: st.link || "",
+        price: st.type === "meeting" || st.price === "" ? 0 : st.price, payments: st.payments.filter((p) => p.amount), brief: st.brief, notes: st.notes, callNotes: st.callNotes, deleted: false,
       };
       if (isNew) data.source = "app";
       const newId = await save("events", ex?.id, data, data.title);
@@ -326,7 +357,7 @@ export function historyModal(docId, title) {
 }
 
 // ─────────── Calendar view ───────────
-let calMonth = null, calSel = null, calFilter = new Set(["shoot", "recording", "management", "unsorted"]);
+let calMonth = null, calSel = null, calFilter = new Set(TYPE_ORDER);
 export function renderCalendar(root) {
   if (!calMonth) { const d = new Date(); calMonth = new Date(d.getFullYear(), d.getMonth(), 1).getTime(); }
   const first = new Date(calMonth);
@@ -350,10 +381,10 @@ export function renderCalendar(root) {
   root.innerHTML = `<div class="topbar"><h1>Calendar</h1>
       <div class="btns"><button class="btn" data-prev>‹</button><button class="btn" data-today>Today</button><button class="btn" data-next>›</button></div></div>
     <div class="btns" style="margin-bottom:10px"><h2 style="margin:0;flex:1">${esc(first.toLocaleDateString("en-GB", { month: "long", year: "numeric" }))}</h2>
-      <div class="chips">${["shoot", "recording", "management", "unsorted"].map((t) => `<span class="chip ${calFilter.has(t) ? "on" : ""} t-${t}" data-f="${t}"><span class="tdot"></span>${TYPES[t].label}</span>`).join("")}</div></div>
+      <div class="chips">${TYPE_ORDER.map((t) => `<span class="chip ${calFilter.has(t) ? "on" : ""} t-${t}" data-f="${t}"><span class="tdot"></span>${TYPES[t].label}</span>`).join("")}</div></div>
     <div class="cal">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => `<div class="dow">${d}</div>`).join("")}${cells}</div>
     ${sel ? `<div class="card flat" style="margin-top:14px"><div style="padding:12px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--line)"><h2 style="margin:0;flex:1">${esc(fmtDate(sel))}</h2>
-      <button class="btn sm" data-add="shoot">+ Shoot</button><button class="btn sm" data-add="recording">+ Recording</button><button class="btn sm" data-add="management">+ Mgmt</button></div>
+      <button class="btn sm" data-add="shoot">+ Shoot</button><button class="btn sm" data-add="recording">+ Recording</button><button class="btn sm" data-add="management">+ Mgmt</button><button class="btn sm" data-add="meeting">+ Meeting</button></div>
       <div class="list">${selEvents.map((e) => eventRow(e, { showDate: false })).join("") || '<div class="empty">Nothing planned.</div>'}</div></div>` : ""}`;
   $("[data-prev]", root).onclick = () => { const d = new Date(calMonth); calMonth = new Date(d.getFullYear(), d.getMonth() - 1, 1).getTime(); calSel = null; renderCalendar(root); };
   $("[data-next]", root).onclick = () => { const d = new Date(calMonth); calMonth = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime(); calSel = null; renderCalendar(root); };
@@ -381,12 +412,12 @@ export function renderTypeList(root, type, title) {
   const all = events().filter((e) => e.type === type && e.status !== "cancelled");
   const upcomingHours = all.filter((e) => e.end >= now).reduce((s, e) => s + (e.allDay ? 0 : hoursOf(e)), 0);
   const owed = all.reduce((s, e) => s + owedOf(e), 0);
-  root.innerHTML = `<div class="topbar"><h1>${esc(title)}</h1><button class="btn primary" data-new>+ New ${TYPES[type].label.toLowerCase()}</button></div>
+  root.innerHTML = `<div class="topbar"><h1>${esc(title)}</h1><button class="btn primary" data-new>+ New ${esc(TYPES[type].label.toLowerCase())}</button></div>
     <div class="stats" style="margin-bottom:14px">
       <div class="stat"><div class="v">${all.filter((e) => e.end >= now).length}</div><div class="k">Upcoming</div></div>
       <div class="stat"><div class="v">${upcomingHours}</div><div class="k">Hours booked ahead</div></div>
       <div class="stat"><div class="v">${all.filter((e) => e.end < now).length}</div><div class="k">Completed</div></div>
-      <div class="stat"><div class="v ${owed ? "money-pos" : ""}">${esc(money(owed))}</div><div class="k">Unpaid balance</div></div></div>
+      ${type === "meeting" ? "" : `<div class="stat"><div class="v ${owed ? "money-pos" : ""}">${esc(money(owed))}</div><div class="k">Unpaid balance</div></div>`}</div>
     <div class="tabs">${["upcoming", "past", "all"].map((t) => `<button data-tab="${t}" class="${tab === t ? "on" : ""}">${t[0].toUpperCase() + t.slice(1)}</button>`).join("")}</div>
     <div class="card flat"><div class="list">${list.map((e) => eventRow(e)).join("") || '<div class="empty">Nothing here yet.</div>'}</div></div>`;
   $("[data-new]", root).onclick = () => openEventEditor(null, { type });
