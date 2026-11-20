@@ -1,0 +1,32 @@
+rules_version = '2';
+// BTS security rules: only people listed (and active) in /members can read or write anything.
+// Accounts are created only by an admin from the Team page; signing up yourself gives no access.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null && request.auth.token.email != null; }
+    function memberDoc() { return /databases/$(database)/documents/members/$(request.auth.token.email.lower()); }
+    function isMember() { return signedIn() && exists(memberDoc()) && get(memberDoc()).data.active != false; }
+    function isAdmin() { return isMember() && get(memberDoc()).data.role == 'admin'; }
+
+    match /members/{email} {
+      allow read: if isMember();
+      allow create, delete: if isAdmin();
+      // admins edit anyone; members may only change their own name
+      allow update: if isAdmin() || (isMember() && email == request.auth.token.email.lower()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'updatedAt', 'updatedBy', 'updatedByName']));
+    }
+    // Shared read-only call sheets: anyone with the exact link can read one; nobody can list them.
+    match /callsheets/{token} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if isMember();
+    }
+    match /activity/{id} {
+      allow read, create: if isMember();
+      allow update, delete: if false; // history can't be rewritten
+    }
+    match /{col}/{id} {
+      allow read, write: if isMember() && col in ['artists', 'contracts', 'events', 'equipment', 'locations', 'docs', 'meta'];
+    }
+  }
+}

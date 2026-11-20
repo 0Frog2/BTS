@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#0d0f13">
+  <title>Call sheet</title>
+  <link rel="stylesheet" href="css/app.css?v=1">
+  <style>.wrap{max-width:640px;margin:0 auto;padding:20px 14px 60px}.big{font-size:1.6rem;font-weight:700}</style>
+</head>
+<body>
+<div class="wrap" id="c"><div class="loading">Loading call sheet…</div></div>
+<script type="module">
+import { CONFIG } from "./js/config.js";
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const el = document.getElementById("c");
+const t = new URLSearchParams(location.search).get("t");
+const dec = (v) => v == null ? null : "stringValue" in v ? v.stringValue : "integerValue" in v ? Number(v.integerValue) : "doubleValue" in v ? v.doubleValue : "booleanValue" in v ? v.booleanValue : "arrayValue" in v ? (v.arrayValue.values || []).map(dec) : null;
+(async () => {
+  if (!t) { el.innerHTML = '<div class="empty">Missing link.</div>'; return; }
+  try {
+    const r = await fetch(`https://firestore.googleapis.com/v1/projects/${CONFIG.firebase.projectId}/databases/(default)/documents/callsheets/${encodeURIComponent(t)}?key=${CONFIG.firebase.apiKey}`);
+    if (!r.ok) throw new Error("gone");
+    const f = (await r.json()).fields || {};
+    const d = Object.fromEntries(Object.entries(f).map(([k, v]) => [k, dec(v)]));
+    const L = "en-GB";
+    const date = new Date(d.start).toLocaleDateString(L, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const tm = (ms) => new Date(ms).toLocaleTimeString(L, { hour: "2-digit", minute: "2-digit" });
+    document.title = "Call sheet – " + (d.title || "");
+    const map = d.address || d.location;
+    el.innerHTML = `<div class="brand" style="padding:0 0 10px">BTS<span>.</span> <span class="muted" style="font-weight:400;letter-spacing:0;font-size:.9rem">Call sheet</span></div>
+      ${d.status === "cancelled" ? '<div class="alert bad"><b>This booking has been cancelled.</b></div>' : ""}
+      <div class="card"><div class="muted">${esc(d.type)}${d.subtype ? " · " + esc(d.subtype) : ""}</div><div class="big">${esc(d.title)}</div>
+        ${d.artist ? `<div style="margin-top:4px">🎤 ${esc(d.artist)}</div>` : ""}</div>
+      <div class="card"><div class="kv"><div>Date</div><div><b>${esc(date)}</b></div>
+        <div>Time</div><div><b>${d.allDay ? "All day" : esc(tm(d.start)) + " – " + esc(tm(d.end))}</b></div>
+        ${d.location ? `<div>Location</div><div>${esc(d.location)}${d.address ? "<br>" + esc(d.address) : ""}${map ? `<br><a target="_blank" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(map)}">Open in Google Maps ↗</a>` : ""}</div>` : ""}
+        ${(d.crew || []).length ? `<div>Team</div><div>${(d.crew || []).map(esc).join("<br>")}</div>` : ""}
+        ${(d.equipment || []).length ? `<div>Equipment</div><div>${(d.equipment || []).map(esc).join("<br>")}</div>` : ""}</div></div>
+      ${d.notes ? `<div class="card"><h2>Notes</h2><div class="pre">${esc(d.notes)}</div></div>` : ""}
+      <p class="dim" style="font-size:.8rem">Updated ${esc(new Date(d.updatedAt).toLocaleString(L))}</p>`;
+  } catch (e) { el.innerHTML = '<div class="empty">This call sheet link is no longer active.</div>'; }
+})();
+</script>
+</body>
+</html>
