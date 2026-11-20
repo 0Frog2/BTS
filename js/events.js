@@ -44,7 +44,7 @@ export function openEventEditor(id, preset = {}) {
   const now = new Date(); now.setMinutes(0, 0, 0); now.setHours(now.getHours() + 1);
   const st = ex ? JSON.parse(JSON.stringify(ex)) : {
     type: preset.type || "shoot", subtype: "", title: "", artistId: preset.artistId || "", status: "planned",
-    start: preset.start || now.getTime(), end: (preset.start || now.getTime()) + 4 * 36e5, allDay: false,
+    start: preset.start || now.getTime(), end: (preset.start || now.getTime()) + (preset.type === "meeting" ? 1 : 4) * 36e5, allDay: false,
     locationId: "", locationText: "", travelMin: 0, memberIds: S.me ? [S.me.id] : [], equipmentIds: [],
     price: "", payments: [], notes: "", brief: "", callNotes: "", docIds: [], link: "",
   };
@@ -139,6 +139,7 @@ export function openEventEditor(id, preset = {}) {
     $("[data-moneysec]", el).style.display = mt ? "none" : "";
     $("[data-linkf]", el).style.display = mt || st.type === "management" ? "" : "none";
     $("[data-teamlabel]", el).textContent = mt ? "Who attends" : "Team";
+    $("[name=title]", el).placeholder = mt ? "e.g. Weekly sync – December plan" : "e.g. Valentino – Music video";
     $("[data-docsec]", el).style.display = mt || st.type === "management" ? "" : "none";
     const sh = $("[data-share]", el); if (sh) sh.style.display = NO_GEAR.has(st.type) ? "none" : "";
   }
